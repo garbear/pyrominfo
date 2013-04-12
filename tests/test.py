@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+#
 # Copyright (C) 2013 Garrett Brown
 # See Copyright Notice in rominfo.py
 
