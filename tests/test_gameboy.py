@@ -12,33 +12,29 @@ class TestGameboyParser(unittest.TestCase):
         self.gbParser = gameboy.GameboyParser()
 
     def test_gameboy(self):
-        invalid = self.gbParser.parseGameboy("data/invalid")
+        invalid = self.gbParser.parse("data/invalid")
         self.assertEquals(len(invalid), 0)
 
-        empty = self.gbParser.parseGameboy("data/empty")
+        empty = self.gbParser.parse("data/empty")
         self.assertEquals(len(empty), 0)
 
-        props = self.gbParser.parseGameboy("data/Tetris.gb")
-        self.assertEquals(len(props), 4)
-        self.assertEquals(props["code"], "TETRIS")
+        props = self.gbParser.parse("data/The Legend of Zelda - Links Awakening DX.gbc")
+        self.assertEquals(len(props), 15)
+        self.assertEquals(props["title"], "ZELDA")
+        self.assertEquals(props["platform"], "Game Boy Color")
+        self.assertEquals(props["sgb_support"], "yes")
         self.assertEquals(props["publisher"], "Nintendo")
         self.assertEquals(props["publisher_code"], "01")
-        self.assertEquals(props["platform"], "Game Boy")
-
-    def test_gameboy_advance(self):
-        invalid = self.gbParser.parseGameboy("data/invalid")
-        self.assertEquals(len(invalid), 0)
-
-        empty = self.gbParser.parseGameboyAdvance("data/empty")
-        self.assertEquals(len(empty), 0)
-
-        props = self.gbParser.parseGameboyAdvance("data/Disney Princess - Royal Adventure.gba")
-        self.assertEquals(len(props), 5)
-        self.assertEquals(props["title"], "PRINCESSTOWN")
-        self.assertEquals(props["code"], "BQNP")
-        self.assertEquals(props["publisher"], "Disney")
-        self.assertEquals(props["publisher_code"], "4Q")
-        self.assertEquals(props["platform"], "Game Boy Advance")
+        self.assertEquals(props["cartridge_type"], "ROM+MBC5+RAM+BATT")
+        self.assertEquals(props["cartridge_type_code"], "1B")
+        self.assertEquals(props["rom_size"], "1MB")
+        self.assertEquals(props["rom_size_code"], "05")
+        self.assertEquals(props["ram_size"], "32KB")
+        self.assertEquals(props["ram_size_code"], "03")
+        self.assertEquals(props["destination"], "")
+        self.assertEquals(props["version"], "00")
+        self.assertEquals(props["header_checksum"], "3C")
+        self.assertEquals(props["global_checksum"], "E3FD")
 
 if __name__ == '__main__':
     unittest.main()

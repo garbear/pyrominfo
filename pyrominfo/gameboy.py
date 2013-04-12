@@ -4,71 +4,170 @@
 from rominfo import RomInfoParser
 
 class GameboyParser(RomInfoParser):
+    """
+    Parse a Nintendo Gameboy image. Valid extensions are gb, gbc, cgb, sgb.
+    Gameboy header references and related source code:
+    * http://gbdev.gg8.se/wiki/articles/The_Cartridge_Header
+    * http://gameboy.mongenel.com/dmg/asmmemmap.html
+    * RomInfo.cpp of the VBA-M project:
+    * http://vbam.svn.sourceforge.net/viewvc/vbam/trunk/src/win32/RomInfo.cpp?view=markup
+    """
+
     def getValidExtensions(self):
-        """
-        We match by extension only (isValidData() always returns false) because
-        magic words aren't supported for Game Boy/Game Boy Advance ROMs.
-        """
-        return ["gb", "gbc", "cgb", "sgb", "gba", "agb"]
+        return ["gb", "gbc", "cgb", "sgb"]
 
     def parse(self, filename):
-        if self._getExtension(filename) in ["gb", "gbc", "cgb", "sgb"]:
-            return self.parseGameboy(filename)
-        elif self._getExtension(filename) in ["gba", "agb"]:
-            return self.parseGameboyAdvance(filename)
-        else:
-            return {}
-
-    def parseGameboy(self, filename):
-        """
-        Parse a Game Boy image. Valid extensions are gb, gbc, cgb, sgb. See
-        RomInfo.cpp of the VBA-M project.
-        http://vbam.svn.sourceforge.net/viewvc/vbam/trunk/src/win32/RomInfo.cpp?view=markup
-        """
         props = {}
         try:
-            data = open(filename, "rb").read(0x14b + 1)
+            data = open(filename, "rb").read(0x150)
+            if self.isValidData(data):
+                props = self.parseBuffer(data)
         except IOError:
-            return props
-        if len(data) >= 0x14b + 1:
-            #props["title"] = "" # Not present on Game Boy roms
-            props["code"] = self._sanitize(data[0x134 : 0x134 + 15])
-            if ord(data[0x143]) & 0x80:
-                props["platform"] = "Game Boy Color"
-            elif ord(data[0x146]) == 0x03:
-                props["platform"] = "Super Game Boy"
-            else:
-                props["platform"] = "Game Boy"
-            props["publisher"] = gameboy_publishers.get(data[0x144 : 0x144 + 2], "")
-            props["publisher_code"] = data[0x144 : 0x144 + 2] if props["publisher"] else ""
-            # Publisher at address $14b takes precedence, if possible
-            if data[0x14b] != 0x33:
-                pub2 = "%02X" % ord(data[0x14b])
-                if pub2 in gameboy_publishers:
-                    props["publisher"] = gameboy_publishers.get(pub2)
-                    props["publisher_code"] = pub2
+            pass
         return props
 
-    def parseGameboyAdvance(self, filename):
+    def isValidData(self, data):
         """
-        Parse a Game Boy Advance image. Valid extensions are gba, agb. See
-        RomInfo.cpp of the VBA-M project.
+        The watermark we use here is the Nintendo logo. The Nintendo logo that is
+        displayed when the gameboy gets turned on is stored in the 48 bytes from
+        address $0104 to $0133. The hex dump is below. The gameboy boot procedure
+        verifies the content of this bitmap and LOCKS ITSELF UP if these bytes are
+        incorrect. As the logo is a registered trademark of Nintendo, this strategy
+        was aimed at preventing unauthorized developers from publishing games for
+        the handheld. However, a legal precedent was set in the United States in a
+        case of Sega vs. Accolade (c.1993). Accolade published games for Sega's
+        Genesis console containing a signature whose copyright was property of
+        Sega. Accolade used this logo so that their games, which were not approved
+        by Sega, would be able to play on the Genesis console. The judge ruled in
+        favor of Accolade, stating that using a logo in this form was an anti-
+        competitive practice, and therefore, Accolade was allowed to continue
+        selling their games. Evil, twisted use of our copyright system, right?
+            Source:
+            http://gbdev.gg8.se/wiki/articles/The_Cartridge_Header
+            http://gameboy.mongenel.com/dmg/asmmemmap.html
+        Color Gameboy verifies only the first 24 bytes of the bitmap, but others
+        (for example a pocket gameboy) verify all 48 bytes.
         """
+        if len(data) >= 0x150:
+            nintendo_logo = [
+                0xCE, 0xED, 0x66, 0x66, 0xCC, 0x0D, 0x00, 0x0B, 0x03, 0x73, 0x00, 0x83, 0x00, 0x0C, 0x00, 0x0D,
+                0x00, 0x08, 0x11, 0x1F, 0x88, 0x89, 0x00, 0x0E, 0xDC, 0xCC, 0x6E, 0xE6, 0xDD, 0xDD, 0xD9, 0x99,
+                0xBB, 0xBB, 0x67, 0x63, 0x6E, 0x0E, 0xEC, 0xCC, 0xDD, 0xDC, 0x99, 0x9F, 0xBB, 0xB9, 0x33, 0x3E,
+            ]
+            return [ord(b) for b in data[0x104 : 0x104 + len(nintendo_logo)]] == nintendo_logo
+
+        return False
+
+    def parseBuffer(self, data):
         props = {}
-        try:
-            data = open(filename, "rb").read(0xb0 + 2)
-        except IOError:
-            return props
-        if len(data) >= 0xb0 + 2:
-            props["title"] = self._sanitize(data[0xa0 : 0xa0 + 12])
-            props["code"] = self._sanitize(data[0xac : 0xac + 4])
-            props["publisher"] = gameboy_publishers.get(data[0xb0 : 0xb0 + 2], "")
-            props["publisher_code"] = data[0xb0 : 0xb0 + 2] if props["publisher"] else ""
-            props["platform"] = "Game Boy Advance"
+
+        # 0134-0143 - Title, UPPER CASE ASCII
+        props["title"] = self._sanitize(data[0x134 : 0x134 + 16])
+
+        # 0143 - CGB Flag, in older cartridges this byte has been part of the Title
+        #        but _sanitize() will strip non-ASCII values. Typical values are:
+        #   80h: Game supports CGB functions, but works on old gameboys also
+        #   C0h: Game works on CGB only (physically the same as 80h)
+        # 0146 - SGB Flag, specifies whether the game supports SGB functions, common values are:
+        #   00h: No SGB functions (Normal Gameboy or CGB only game)
+        #   03h: Game supports SGB functions
+        if ord(data[0x143]) & 0x80:
+            props["platform"] = "Game Boy Color"
+        elif ord(data[0x146]) == 0x03:
+            props["platform"] = "Super Game Boy"
+        else:
+            props["platform"] = "Game Boy"
+        props["sgb_support"] = "yes" if ord(data[0x146]) == 0x03 else ""
+
+        # 0144-0145 - New Licensee Code, two character ASCII licensee code
+        # 014B - Old Licensee Code in range 00-FF, value of 33h signals New License Code is used instead
+        if ord(data[0x14b]) == 0x33:
+            pub = data[0x144 : 0x144 + 2]
+        else:
+            pub = "%02X" % ord(data[0x14b])
+        props["publisher"] = gameboy_publishers.get(pub, "")
+        props["publisher_code"] = pub
+
+        # 0147 - Cartridge type, which Memory Bank Controller (if any) is used in the cartridge,
+        #        and if further external hardware exists in the cartridge
+        props["cartridge_type"] = gameboy_types.get(ord(data[0x147]), "")
+        props["cartridge_type_code"] = "%02X" % ord(data[0x147])
+
+        # 0148 - ROM size of the cartridge
+        props["rom_size"] = gameboy_rom_sizes.get(ord(data[0x148]), "")
+        props["rom_size_code"] = "%02X" % ord(data[0x148])
+
+        # 0149 - Size of the external RAM in the cartridge (if any)
+        props["ram_size"] = gameboy_ram_sizes.get(ord(data[0x149]), "")
+        props["ram_size_code"] = "%02X" % ord(data[0x149])
+
+        # 014A - Destination code, if this version of the game is supposed to be sold in Japan.
+        #        Only two values are defined: 00h - Japanese, 01h - Non-Japanese.
+        props["destination"] = "Japan" if ord(data[0x14a]) == 0x00 else ""
+
+        # 014C - Mask ROM version number of the game, usually 00h
+        props["version"] = "%02X" % ord(data[0x14c])
+
+        # 014D - Header checksum, 8 bit checksum across the cartridge header bytes 0134-014C
+        props["header_checksum"] = "%02X" % ord(data[0x14d])
+
+        # 014E-014F - Global checksum, 16 bit checksum across the whole cartridge ROM
+        props["global_checksum"] = "%04X" % ((ord(data[0x14e]) << 8) | ord(data[0x14f]))
+
         return props
 
 RomInfoParser.registerParser(GameboyParser())
 
+
+gameboy_types = {
+    0x00: "ROM",
+    0x01: "ROM+MBC1",
+    0x02: "ROM+MBC1+RAM",
+    0x03: "ROM+MBC1+RAM+BATT",
+    0x05: "ROM+MBC2",
+    0x06: "ROM+MBC2+BATT",
+    0x0b: "ROM+MMM01",
+    0x0c: "ROM+MMM01+RAM",
+    0x0d: "ROM+MMM01+RAM+BATT",
+    0x0f: "ROM+MBC3+TIMER+BATT",
+    0x10: "ROM+MBC3+TIMER+RAM+BATT",
+    0x11: "ROM+MBC3",
+    0x12: "ROM+MBC3+RAM",
+    0x13: "ROM+MBC3+RAM+BATT",
+    0x19: "ROM+MBC5",
+    0x1a: "ROM+MBC5+RAM",
+    0x1b: "ROM+MBC5+RAM+BATT",
+    0x1c: "ROM+MBC5+RUMBLE",
+    0x1d: "ROM+MBC5+RUMBLE+RAM",
+    0x1e: "ROM+MBC5+RUMBLE+RAM+BATT",
+    0x22: "ROM+MBC7+BATT",
+    0x55: "GameGenie",
+    0x56: "GameShark V3.0",
+    0xfc: "ROM+POCKET CAMERA",
+    0xfd: "ROM+BANDAI TAMA5",
+    0xfe: "ROM+HuC-3",
+    0xff: "ROM+HuC-1",
+}
+
+gameboy_rom_sizes = {
+    0: "32KB",
+    1: "64KB",
+    2: "128KB",
+    3: "256KB",
+    4: "512KB",
+    5: "1MB",
+    6: "2MB",
+    7: "4MB",
+}
+
+gameboy_ram_sizes = {
+    0: "0KB",
+    1: "2KB",
+    2: "8KB",
+    3: "32KB",
+    4: "128KB",
+    5: "64KB"
+}
 
 gameboy_publishers = {
     "01": "Nintendo",

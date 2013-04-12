@@ -16,7 +16,6 @@ def loadModule(mod):
         parentdir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         os.sys.path.insert(0, parentdir)
         pyrominfo = __import__("pyrominfo", globals(), locals(), [mod])
-
     try:
         return getattr(pyrominfo, mod)
     except AttributeError:

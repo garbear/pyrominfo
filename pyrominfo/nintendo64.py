@@ -4,28 +4,30 @@
 from rominfo import RomInfoParser
 
 class Nintendo64Parser(RomInfoParser):
+    """
+    Parse a Nintendo 64 image. Valid extensions are z64 (native byte order),
+    n64 (wordswapped), and v64 (byteswapped). Nintendo 64 header references and
+    related source code:
+    * See rom.c of the Mupen64Plus project:
+    * https://bitbucket.org/richard42/mupen64plus-core/src/4cd70c2b5d38/src/main/rom.c
+    """
+
     def getValidExtensions(self):
         return ["n64", "v64", "z64"]
-    
+
     def parse(self, filename):
-        """
-        Parse a Nintendo 64 image. Valid extensions are z64 (native byte order),
-        n64 (wordswapped), and v64 (byteswapped), and . See rom.c of the
-        Mupen64Plus project.
-        https://bitbucket.org/richard42/mupen64plus-core/src/4cd70c2b5d38/src/main/rom.c
-        """
         props = {}
         try:
             data = open(filename, "rb").read(64)
+            if self.isValidData(data):
+                props = self.parseBuffer(data)
         except IOError:
-            return props
-        if self.isValidData(data):
-            return self.parseBuffer(data)
+            pass
         return props
 
     def isValidData(self, data):
         """
-        Test if a file is a valid N64 image by checking the first 4 bytes.
+        Test for a valid N64 image by checking the first 4 bytes for the magic word.
         """
         if len(data) >= 64:
             # Test if rom is a native .z64 image with header 0x80371240. [ABCD]
