@@ -18,9 +18,10 @@ class Nintendo64Parser(RomInfoParser):
     def parse(self, filename):
         props = {}
         try:
-            data = open(filename, "rb").read(64)
-            if self.isValidData(data):
-                props = self.parseBuffer(data)
+            with open(filename, "rb") as f:
+                data = bytearray(f.read(64))
+                if self.isValidData(data):
+                    props = self.parseBuffer(data)
         except IOError:
             pass
         return props
@@ -31,13 +32,13 @@ class Nintendo64Parser(RomInfoParser):
         """
         if len(data) >= 64:
             # Test if rom is a native .z64 image with header 0x80371240. [ABCD]
-            if [ord(b) for b in data[:4]] == [0x80, 0x37, 0x12, 0x40]:
+            if [b for b in data[:4]] == [0x80, 0x37, 0x12, 0x40]:
                 return True
             # Test if rom is a byteswapped .v64 image with header 0x37804012. [BADC]
-            if [ord(b) for b in data[:4]] == [0x37, 0x80, 0x40, 0x12]:
+            if [b for b in data[:4]] == [0x37, 0x80, 0x40, 0x12]:
                 return False # TODO: Add byte-swapping
             # Test if rom is a wordswapped .n64 image with header  0x40123780. [DCBA]
-            if [ord(b) for b in data[:4]] == [0x40, 0x12, 0x37, 0x80]:
+            if [b for b in data[:4]] == [0x40, 0x12, 0x37, 0x80]:
                 return False # TODO: Add word-swapping
         return False
 
@@ -45,11 +46,11 @@ class Nintendo64Parser(RomInfoParser):
         props = {}
         props["title"] = self._sanitize(data[0x20 : 0x20 + 20])
         props["code"] = self._sanitize(data[0x3c : 0x3c + 2])
-        pub = data[0x38 : 0x38 + 4]
+        pub = data[0x38 : 0x38 + 4].decode("ascii", "ignore")
         props["publisher"] = n64_publishers.get(pub[3], "") # Low byte of int
-        props["region"] = n64_regions.get(ord(data[0x3e]), "")
-        if props["region"] or ord(data[0x3e]) in [0x00, 0x37]:
-            props["region_code"] = "%02X" % ord(data[0x3e])
+        props["region"] = n64_regions.get(data[0x3e], "")
+        if props["region"] or data[0x3e] in [0x00, 0x37]:
+            props["region_code"] = "%02X" % data[0x3e]
         else:
             props["region_code"] = ""
         return props

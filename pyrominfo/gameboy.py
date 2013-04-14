@@ -19,9 +19,10 @@ class GameboyParser(RomInfoParser):
     def parse(self, filename):
         props = {}
         try:
-            data = open(filename, "rb").read(0x150)
-            if self.isValidData(data):
-                props = self.parseBuffer(data)
+            with open(filename, "rb") as f:
+                data = bytearray(f.read(0x150))
+                if self.isValidData(data):
+                    props = self.parseBuffer(data) 
         except IOError:
             pass
         return props
@@ -48,15 +49,12 @@ class GameboyParser(RomInfoParser):
         Color Gameboy verifies only the first 24 bytes of the bitmap, but others
         (for example a pocket gameboy) verify all 48 bytes.
         """
-        if len(data) >= 0x150:
-            nintendo_logo = [
-                0xCE, 0xED, 0x66, 0x66, 0xCC, 0x0D, 0x00, 0x0B, 0x03, 0x73, 0x00, 0x83, 0x00, 0x0C, 0x00, 0x0D,
-                0x00, 0x08, 0x11, 0x1F, 0x88, 0x89, 0x00, 0x0E, 0xDC, 0xCC, 0x6E, 0xE6, 0xDD, 0xDD, 0xD9, 0x99,
-                0xBB, 0xBB, 0x67, 0x63, 0x6E, 0x0E, 0xEC, 0xCC, 0xDD, 0xDC, 0x99, 0x9F, 0xBB, 0xB9, 0x33, 0x3E,
-            ]
-            return [ord(b) for b in data[0x104 : 0x104 + len(nintendo_logo)]] == nintendo_logo
-
-        return False
+        nintendo_logo = [
+            0xCE, 0xED, 0x66, 0x66, 0xCC, 0x0D, 0x00, 0x0B, 0x03, 0x73, 0x00, 0x83, 0x00, 0x0C, 0x00, 0x0D,
+            0x00, 0x08, 0x11, 0x1F, 0x88, 0x89, 0x00, 0x0E, 0xDC, 0xCC, 0x6E, 0xE6, 0xDD, 0xDD, 0xD9, 0x99,
+            0xBB, 0xBB, 0x67, 0x63, 0x6E, 0x0E, 0xEC, 0xCC, 0xDD, 0xDC, 0x99, 0x9F, 0xBB, 0xB9, 0x33, 0x3E,
+        ]
+        return [b for b in data[0x104 : 0x104 + len(nintendo_logo)]] == nintendo_logo
 
     def parseBuffer(self, data):
         props = {}
@@ -71,48 +69,48 @@ class GameboyParser(RomInfoParser):
         # 0146 - SGB Flag, specifies whether the game supports SGB functions, common values are:
         #   00h: No SGB functions (Normal Gameboy or CGB only game)
         #   03h: Game supports SGB functions
-        if ord(data[0x143]) & 0x80:
+        if data[0x143] & 0x80:
             props["platform"] = "Game Boy Color"
-        elif ord(data[0x146]) == 0x03:
+        elif data[0x146] == 0x03:
             props["platform"] = "Super Game Boy"
         else:
             props["platform"] = "Game Boy"
-        props["sgb_support"] = "yes" if ord(data[0x146]) == 0x03 else ""
+        props["sgb_support"] = "yes" if data[0x146] == 0x03 else ""
 
         # 0144-0145 - New Licensee Code, two character ASCII licensee code
         # 014B - Old Licensee Code in range 00-FF, value of 33h signals New License Code is used instead
-        if ord(data[0x14b]) == 0x33:
-            pub = data[0x144 : 0x144 + 2]
+        if data[0x14b] == 0x33:
+            pub = data[0x144 : 0x144 + 2].decode("ascii", "ignore")
         else:
-            pub = "%02X" % ord(data[0x14b])
+            pub = "%02X" % data[0x14b]
         props["publisher"] = gameboy_publishers.get(pub, "")
         props["publisher_code"] = pub
 
         # 0147 - Cartridge type, which Memory Bank Controller (if any) is used in the cartridge,
         #        and if further external hardware exists in the cartridge
-        props["cartridge_type"] = gameboy_types.get(ord(data[0x147]), "")
-        props["cartridge_type_code"] = "%02X" % ord(data[0x147])
+        props["cartridge_type"] = gameboy_types.get(data[0x147], "")
+        props["cartridge_type_code"] = "%02X" % data[0x147]
 
         # 0148 - ROM size of the cartridge
-        props["rom_size"] = gameboy_rom_sizes.get(ord(data[0x148]), "")
-        props["rom_size_code"] = "%02X" % ord(data[0x148])
+        props["rom_size"] = gameboy_rom_sizes.get(data[0x148], "")
+        props["rom_size_code"] = "%02X" % data[0x148]
 
         # 0149 - Size of the external RAM in the cartridge (if any)
-        props["ram_size"] = gameboy_ram_sizes.get(ord(data[0x149]), "")
-        props["ram_size_code"] = "%02X" % ord(data[0x149])
+        props["ram_size"] = gameboy_ram_sizes.get(data[0x149], "")
+        props["ram_size_code"] = "%02X" % data[0x149]
 
         # 014A - Destination code, if this version of the game is supposed to be sold in Japan.
         #        Only two values are defined: 00h - Japanese, 01h - Non-Japanese.
-        props["destination"] = "Japan" if ord(data[0x14a]) == 0x00 else ""
+        props["destination"] = "Japan" if data[0x14a] == 0x00 else ""
 
         # 014C - Mask ROM version number of the game, usually 00h
-        props["version"] = "%02X" % ord(data[0x14c])
+        props["version"] = "%02X" % data[0x14c]
 
         # 014D - Header checksum, 8 bit checksum across the cartridge header bytes 0134-014C
-        props["header_checksum"] = "%02X" % ord(data[0x14d])
+        props["header_checksum"] = "%02X" % data[0x14d]
 
         # 014E-014F - Global checksum, 16 bit checksum across the whole cartridge ROM
-        props["global_checksum"] = "%04X" % ((ord(data[0x14e]) << 8) | ord(data[0x14f]))
+        props["global_checksum"] = "%04X" % ((data[0x14e] << 8) | data[0x14f])
 
         return props
 
