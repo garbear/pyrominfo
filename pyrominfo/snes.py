@@ -11,6 +11,10 @@ class SNESParser(RomInfoParser):
     * http://softpixel.com/~cwright/sianse/docs/Snesrom.txt
     * snescart.c of the MAME project:
     * http://mamedev.org/source/src/mess/machine/snescart.c.html
+    * memmap.c of the Snes9x project:
+    * https://github.com/snes9xgit/snes9x/blob/master/memmap.cpp
+    * initc.c of the ZSNES project:
+    * http://zsnes.cvs.sourceforge.net/viewvc/zsnes/zsnes/src/initc.c?view=markup
     """
 
     # Enum values
@@ -33,18 +37,49 @@ class SNESParser(RomInfoParser):
                 data = bytearray(f.read())
                 if data:
                     # Check for a header (512 bytes), and skip it if found
-                    romOffset = 512 if self.hasSWCHeader(data) else 0
-    
+                    if self.hasSWCHeader(data):
+                        data = data[512:]
+
                     # First, look if the cart is HiROM or LoROM
-                    headerOffset = self.findHiLoMode(data, romOffset)
-    
-                    # Then, detect BS-X carts
+                    (mode, sram_max, headerOffset) = self.findHiLoMode(data)
+                    #headerOffset = self.findHiLoMode(data)
+
+                    # Then, detect BS-X carts...
                     # Detect presence of BS-X Flash Cart
-                    if  ROM[int_header_offs + 0x13] == 0x00 || ROM[int_header_offs + 0x13] == 0xff) &&
-                    ROM[int_header_offs + 0x14] == 0x00)
-                
-                
-                
+                    if data[headerOffset + 0x13] in [0x00, 0xff]:
+                        if data[headerOffset + 0x14] == 0x00:
+                            if data[headerOffset + 0x15] in [0x00, 0x80, 0x84, 0x9c, 0xbc, 0xfc]:
+                                if data[headerOffset + 0x1a] in [0x33, 0xff]:
+                                    # BS-X Flash Cart
+                                    mode = SNESParser.SNES_MODE_BSX
+
+                    # Detect presence of BS-X flash cartridge connector
+                    hasBsxSlot = False
+                    if chr(data[headerOffset - 14]) == 'Z' and chr(data[headerOffset - 11]) == 'J':
+                        n13 = chr(data[headerOffset - 13])
+                        if ('A' <= n13 and n13 <= 'Z') or ('0' <= n13 and n13 <= '9'):
+                            if (data[headerOffset - 10] == 0x00 and data[headerOffset - 4] == 0x00) or \
+                                    data[headerOffset + 0x1a] == 0x33:
+                                hasBsxSlot = True
+
+                    # If there is a BS-X connector, detect if it is the Base Cart or a compatible slotted cart
+                    if hasBsxSlot:
+                        if data[headerOffset : headerOffset + 21] == b"Satellaview BS-X     ":
+                            # BS-X Base Cart
+                            mode = SNESParser.SNES_MODE_BSX
+                        else:
+                            mode = SNESParser.SNES_MODE_BSLO if headerOffset == 0x007fc0 else SNESParser.SNES_MODE_BSHI
+
+                    # Then, detect Sufami Turbo carts
+                    if data[:14] == b"BANDAI SFC-ADX":
+                        mode = SNESParser.SNES_MODE_ST
+                        if data[16 : 16 + 14] == b"SFC-ADX BACKUP":
+                            st_bios = 1
+
+                    # Got the mode!
+                    print "SNES Mode: %s" % mode
+
+
         except IOError:
             pass
         return props
@@ -57,53 +92,53 @@ class SNESParser(RomInfoParser):
             if data[8] == 0xaa and data[9] == 0xbb and data[10] == 0x04:
                 # Found an SWC identifier
                 return True
-            if ((data[1] << 8) | data[0]) == (len(data) - 512) >> 13:
+            if (data[1] << 8) | data[0] == (len(data) - 512) >> 13:
                 # Some headers have the rom size at the start, if this matches with
                 # the actual rom size, we probably have a header
                 return True
             if len(data) % 0x8000 == 512:
-                # As a last check we'll see if there's exactly 512 bytes extra to this image
+                # As a last check we'll see if there's exactly 512 bytes extra
+                # to this image. MAME takes modulus 0x8000 (32kb), Snes9x uses
+                # len / 0x2000 (8kb) * 0x2000.
                 return True
         return False
 
-    def findHiLoMode(self, buffer, offset):
+    def findHiLoMode(self, data):
         """
-        This determines if a cart is in Mode 20, 21, 22 or 25; sets state->m_cart[0].mode
-        and state->m_cart[0].sram accordingly; and returns the offset of the internal
-        header (needed to detect BSX and ST carts).
+        This determines if a cart is in Mode 20, 21, 22 or 25, estimates the
+        needed sram accordingly, and returns the offset of the internal header
+        (needed to detect BSX and ST carts).
         """
         # Now to determine if this is a lo-ROM, a hi-ROM or an extended lo/hi-ROM
-        valid_mode20 = self.validate_infoblock(buffer, 0x007fc0)
-        valid_mode21 = self.validate_infoblock(buffer, 0x00ffc0)
-        valid_mode25 = self.validate_infoblock(buffer, 0x40ffc0)
+        valid_mode20 = self.validate_infoblock(data, 0x007fc0)
+        valid_mode21 = self.validate_infoblock(data, 0x00ffc0)
+        valid_mode25 = self.validate_infoblock(data, 0x40ffc0)
 
         # Images larger than 32mbits are likely ExHiRom
         if valid_mode25:
             valid_mode25 += 4
 
         if valid_mode20 >= valid_mode21 and valid_mode20 >= valid_mode25:
-            if buffer[0x007fd5] == 0x32 or len(buffer) - offset > 0x401000:
-                mode = SNESParser.SNES_MODE_22 # ExLoRom (cart id = 0)
+            if data[0x007fd5] == 0x32 or len(data) > 0x401000:
+                mode = SNESParser.SNES_MODE_22 # ExLoRom
             else:
-                mode = SNESParser.SNES_MODE_20 # LoRom (cart id = 0)
-
-            retvalue = 0x007fc0
-
+                mode = SNESParser.SNES_MODE_20 # LoRom
+            headerOffset = 0x007fc0
             # A few games require 512k, however we store twice as much to be
             # sure to cover the various mirrors.
-            sram_max = 0x100000 # (cart id = 0)
+            sram_max = 0x100000
 
         elif valid_mode21 >= valid_mode25:
-            mode = SNESParser.SNES_MODE_21 # HiRom (cart id = 0)
-            retvalue = 0x00ffc0
-            sram_max = 0x20000 # (cart id = 0)
+            mode = SNESParser.SNES_MODE_21 # HiRom
+            headerOffset = 0x00ffc0
+            sram_max = 0x20000
 
         else:
-            mode = SNESParser.SNES_MODE_25 # ExHiRom (cart id = 0)
-            retvalue = 0x40ffc0
-            sram_max = 0x20000 # (cart id = 0)
+            mode = SNESParser.SNES_MODE_25 # ExHiRom
+            headerOffset = 0x40ffc0
+            sram_max = 0x20000
 
-        return retvalue
+        return (mode, sram_max, headerOffset,)
 
     def validate_infoblock(self, infoblock, offset):
         """
