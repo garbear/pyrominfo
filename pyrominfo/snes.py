@@ -1,5 +1,18 @@
-# Copyright (C) 2013 Garrett Brown
-# See Copyright Notice in rominfo.py
+# Copyright (C) 1997-2007 ZSNES Team (zsKnight, _Demo_, pagefault, Nach)
+# Copyright (C) 2013      Garrett Brown
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# version 2 as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 
 from rominfo import RomInfoParser
 
@@ -9,12 +22,12 @@ class SNESParser(RomInfoParser):
     SNES header references and related source code:
     * http://romhack.wikia.com/wiki/SNES_header
     * http://softpixel.com/~cwright/sianse/docs/Snesrom.txt
-    * snescart.c of the MAME project:
-    * http://mamedev.org/source/src/mess/machine/snescart.c.html
-    * memmap.c of the Snes9x project:
-    * https://github.com/snes9xgit/snes9x/blob/master/memmap.cpp
     * initc.c of the ZSNES project:
     * http://zsnes.cvs.sourceforge.net/viewvc/zsnes/zsnes/src/initc.c?view=markup
+    * memmap.cpp of the Snes9x project:
+    * https://github.com/snes9xgit/snes9x/blob/master/memmap.cpp
+    * snescart.c of the MAME project:
+    * http://mamedev.org/source/src/mess/machine/snescart.c.html
     """
 
     # Enum values
