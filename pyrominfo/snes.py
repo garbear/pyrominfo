@@ -118,8 +118,8 @@ class SNESParser(RomInfoParser):
                 headerOffset += 0x8000
             header = data[headerOffset : ]
 
-            # Snes9x branches on bsHeader. We simply apply the different values
-            # to the ROM data and use the same code below to set props
+            # Instead of branching on bsHeader, simply apply the different
+            # values to the ROM data and use the same code below to set props
             if bsHeader: # The BS game's SRAM was not found
                 # Only use the first 16 of 21 title characters
                 header[0x010 + 16, 0x010 + 21] = b"     "
@@ -127,7 +127,7 @@ class SNESParser(RomInfoParser):
                 header[0x25] = header[0x28]
                 # Cartridge type is specific to Satellaview BS-X
                 header[0x26] = 0xE5
-                # Snes9x uses this, but prepends with a FIXME warning...
+                # Is this correct?
                 p = 0
                 while (1 << p) < len(data):
                     p += 1
@@ -143,7 +143,7 @@ class SNESParser(RomInfoParser):
             # 000-014 - Title, UPPER CASE ASCII
             props["title"] = self._sanitize(header[0x10 : 0x10 + 21])
 
-            # Game code - part of the extended header
+            # Game code - part of the extended header, not always present
             props["code"] = self._sanitize(header[0x02 : 0x02 + 4])
 
             # 015 - ROM layout and ROM speed, a bitwise-or of these flags:
@@ -185,7 +185,6 @@ class SNESParser(RomInfoParser):
             props["checksum_complement"] = "%04X" % (header[0x2c] + (header[0x2d] << 8))
 
             return props
-
 
     def hasSMCHeader(self, data):
         """
