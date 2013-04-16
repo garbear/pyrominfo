@@ -18,13 +18,10 @@ class GameboyParser(RomInfoParser):
 
     def parse(self, filename):
         props = {}
-        try:
-            with open(filename, "rb") as f:
-                data = bytearray(f.read(0x150))
-                if self.isValidData(data):
-                    props = self.parseBuffer(data) 
-        except IOError:
-            pass
+        with open(filename, "rb") as f:
+            data = bytearray(f.read(0x150))
+            if self.isValidData(data):
+                props = self.parseBuffer(data) 
         return props
 
     def isValidData(self, data):

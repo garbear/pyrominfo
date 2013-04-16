@@ -14,9 +14,6 @@ class TestGameboyParser(unittest.TestCase):
         self.gbParser = gameboy.GameboyParser()
 
     def test_gameboy(self):
-        invalid = self.gbParser.parse("data/invalid")
-        self.assertEquals(len(invalid), 0)
-
         empty = self.gbParser.parse("data/empty")
         self.assertEquals(len(empty), 0)
 

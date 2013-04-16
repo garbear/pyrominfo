@@ -14,9 +14,6 @@ class TestNintendo64Parser(unittest.TestCase):
         self.n64Parser = nintendo64.Nintendo64Parser()
 
     def test_nintendo64(self):
-        invalid = self.n64Parser.parse("data/invalid")
-        self.assertEquals(len(invalid), 0)
-
         empty = self.n64Parser.parse("data/empty")
         self.assertEquals(len(empty), 0)
 

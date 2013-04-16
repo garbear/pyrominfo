@@ -14,9 +14,6 @@ class TestGBAParser(unittest.TestCase):
         self.gbaParser = gba.GBAParser()
 
     def test_gba(self):
-        invalid = self.gbaParser.parse("data/invalid")
-        self.assertEquals(len(invalid), 0)
-
         empty = self.gbaParser.parse("data/empty")
         self.assertEquals(len(empty), 0)
 

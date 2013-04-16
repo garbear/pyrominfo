@@ -21,13 +21,10 @@ class GBAParser(RomInfoParser):
 
     def parse(self, filename):
         props = {}
-        try:
-            with open(filename, "rb") as f:
-                data = bytearray(f.read(0xc0))
-                if self.isValidData(data):
-                    props = self.parseBuffer(data)
-        except IOError:
-            pass
+        with open(filename, "rb") as f:
+            data = bytearray(f.read(0xc0))
+            if self.isValidData(data):
+                props = self.parseBuffer(data)
         return props
 
     def isValidData(self, data):
