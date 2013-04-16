@@ -68,3 +68,6 @@ class RomInfoParser(object):
         Turn all non-ASCII characters into spaces, and then return a stripped string.
         """
         return ''.join(chr(b) if 0x20 <= b and b <= 0x7E else ' ' for b in title).strip()
+
+    def _allASCII(self, data):
+        return all(0x20 <= b and b <= 0x7E for b in data)
