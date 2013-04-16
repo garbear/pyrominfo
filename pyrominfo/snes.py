@@ -64,7 +64,7 @@ class SNESParser(RomInfoParser):
 
     def parseBuffer(self, romdata):
         props = {}
-        forceInterleavedOff = None # Undecided
+        forceInterleavedOff = None # Initially undecided
 
         while forceInterleavedOff is not False:
             forceInterleavedOff = False
@@ -72,7 +72,7 @@ class SNESParser(RomInfoParser):
             # Check for a header (512 bytes), and skip it if found
             data = romdata[512:] if self.hasSMCHeader(romdata) else romdata[:]
 
-            (hiScore, loScore, extendedFormat, headerOffsetRef) = self.findHiLoMode2(data, forceInterleavedOff)
+            (hiScore, loScore, extendedFormat, headerOffsetRef) = self.findHiLoMode(data, forceInterleavedOff)
 
             # These two games fail to be detected (Source: Snes9x)
             if data[0x7fc0 : 0x7fc0 + 22] == b"YUYU NO QUIZ DE GO!GO!" or \
@@ -178,8 +178,8 @@ class SNESParser(RomInfoParser):
                 elif identifier in [0x1320, 0x1420, 0x1520, 0x1A20]:
                     chip = "SuperFX"
                     # Set the SRAM size
-                    if data[0x7fda] == 0x33:
-                        header[0x28] = data[0x7fbd]
+                    if header[0x2a] == 0x33:
+                        header[0x28] = header[0x2b] # version
                     else:
                         header[0x28] = 0x05 # 256 Kbit
                     header[0x28] = 2
@@ -261,47 +261,6 @@ class SNESParser(RomInfoParser):
             return props
 
 
-
-
-            # First, look if the cart is HiROM or LoROM
-            (mode, sram_max, headerOffset) = self.findHiLoMode(data)
-            #headerOffset = self.findHiLoMode(data)
-
-            # Then, detect BS-X carts...
-            # Detect presence of BS-X Flash Cart
-            if data[headerOffset + 0x13] in [0x00, 0xff]:
-                if data[headerOffset + 0x14] == 0x00:
-                    if data[headerOffset + 0x15] in [0x00, 0x80, 0x84, 0x9c, 0xbc, 0xfc]:
-                        if data[headerOffset + 0x1a] in [0x33, 0xff]:
-                            # BS-X Flash Cart
-                            mode = SNESParser.SNES_MODE_BSX
-
-            # Detect presence of BS-X flash cartridge connector
-            hasBsxSlot = False
-            if chr(data[headerOffset - 14]) == 'Z' and chr(data[headerOffset - 11]) == 'J':
-                n13 = chr(data[headerOffset - 13])
-                if ('A' <= n13 and n13 <= 'Z') or ('0' <= n13 and n13 <= '9'):
-                    if (data[headerOffset - 10] == 0x00 and data[headerOffset - 4] == 0x00) or \
-                            data[headerOffset + 0x1a] == 0x33:
-                        hasBsxSlot = True
-
-            # If there is a BS-X connector, detect if it is the Base Cart or a compatible slotted cart
-            if hasBsxSlot:
-                if data[headerOffset : headerOffset + 21] == b"Satellaview BS-X     ":
-                    # BS-X Base Cart
-                    mode = SNESParser.SNES_MODE_BSX
-                else:
-                    mode = SNESParser.SNES_MODE_BSLO if headerOffset == 0x007fc0 else SNESParser.SNES_MODE_BSHI
-
-            # Then, detect Sufami Turbo carts
-            if data[:14] == b"BANDAI SFC-ADX":
-                mode = SNESParser.SNES_MODE_ST
-                if data[16 : 16 + 14] == b"SFC-ADX BACKUP":
-                    st_bios = 1
-
-            # Got the mode!
-            print "SNES Mode: %s" % mode
-
     def hasSMCHeader(self, data):
         """
         Check for a 512-byte SMC, SWC or FIG header prepended to the beginning
@@ -345,7 +304,7 @@ class SNESParser(RomInfoParser):
                     blocks[i] = b
                     break
 
-    def findHiLoMode2(self, data, forceInterleavedOff):
+    def findHiLoMode(self, data, forceInterleavedOff):
         hiScore = self.scoreHiRom(data)
         loScore = self.scoreLoRom(data)
         extendedFormat = False
@@ -418,118 +377,6 @@ class SNESParser(RomInfoParser):
             # Swap memory models
             self.deinterleaveType1(data, len(data));
             return "LoROM" if oldMapType == "HiROM" else "HiROM"
-
-    def findHiLoMode(self, data):
-        """
-        This determines if a cart is in Mode 20, 21, 22 or 25, estimates the
-        needed sram accordingly, and returns the offset of the internal header
-        (needed to detect BSX and ST carts).
-        """
-        # Now to determine if this is a lo-ROM, a hi-ROM or an extended lo/hi-ROM
-        valid_mode20 = self.validate_infoblock(data, 0x007fc0)
-        valid_mode21 = self.validate_infoblock(data, 0x00ffc0)
-        valid_mode25 = self.validate_infoblock(data, 0x40ffc0)
-
-        # Images larger than 32mbits are likely ExHiRom
-        if valid_mode25:
-            valid_mode25 += 4
-
-        if valid_mode20 >= valid_mode21 and valid_mode20 >= valid_mode25:
-            if data[0x007fd5] == 0x32 or len(data) > 0x401000:
-                mode = SNESParser.SNES_MODE_22 # ExLoRom
-            else:
-                mode = SNESParser.SNES_MODE_20 # LoRom
-            headerOffset = 0x007fc0
-            # A few games require 512k, however we store twice as much to be
-            # sure to cover the various mirrors.
-            sram_max = 0x100000
-
-        elif valid_mode21 >= valid_mode25:
-            mode = SNESParser.SNES_MODE_21 # HiRom
-            headerOffset = 0x00ffc0
-            sram_max = 0x20000
-
-        else:
-            mode = SNESParser.SNES_MODE_25 # ExHiRom
-            headerOffset = 0x40ffc0
-            sram_max = 0x20000
-
-        return (mode, sram_max, headerOffset,)
-
-    def validate_infoblock(self, infoblock, offset):
-        """
-        This function assign a 'score' to data immediately after 'offset' to
-        measure how valid they are as information block (to decide if the image
-        is HiRom, LoRom, ExLoRom or ExHiRom).
-        Code from bsnes, courtesy of byuu. <http://byuu.cinnamonpirate.com>
-        """
-        score = 0
-        reset_vector = infoblock[offset + 0x3c] | (infoblock[offset + 0x3d] << 8)
-        checksum     = infoblock[offset + 0x1e] | (infoblock[offset + 0x1f] << 8)
-        ichecksum    = infoblock[offset + 0x1c] | (infoblock[offset + 0x1d] << 8)
-        reset_opcode = infoblock[(offset & 0xFFFF8000) | (reset_vector & 0x7fff)] # first opcode executed upon reset
-        mapper       = infoblock[offset + 0x15] & 0xef
-
-        # $00:[000-7fff] contains uninitialized RAM and MMIO
-        # reset vector must point to ROM at $00:[8000-ffff] to be considered valid
-        if reset_vector < 0x8000:
-            return 0
-
-        # Some images duplicate the header in multiple locations, and others
-        # have completely invalid header information that cannot be relied upon.
-        # The code below will analyze the first opcode executed at the specified
-        # reset vector to determine the probability that this is the correct
-        # header. Score is assigned accordingly.
-
-        # Most likely opcodes
-        if reset_opcode in [0x78, 0x18, 0x38, 0x9c, 0x4c, 0x5c]:
-            score += 8
-
-        # Plausible opcodes
-        if reset_opcode in [0xc2, 0xe2, 0xad, 0xae, 0xac, 0xaf, 0xa9, 0xa2, 0xa0, 0x20, 0x22]:
-            score += 4
-
-        # Implausible opcodes
-        if reset_opcode in [0x40, 0x60, 0x6b, 0xcd, 0xec, 0xcc]:
-            score -= 4
-
-        # Least likely opcodes
-        if reset_opcode in [0x00, 0x02, 0xdb, 0x42, 0xff]:
-            score -= 8
-
-        # Sometimes, both the header and reset vector's first opcode will match...
-        # fallback and rely on info validity in these cases to determine the more
-        # likely header. A valid checksum is the biggest indicator of a valid header.
-        if checksum + ichecksum == 0xffff and checksum != 0 and ichecksum != 0:
-            score += 4
-
-        # Then there are the expected mapper values
-        if offset == 0x007fc0 and mapper == 0x20: # 0x20 is usually LoROM
-            score += 2
-        if offset == 0x00ffc0 and mapper == 0x21: # 0x21 is usually HiROM
-            score += 2
-        if offset == 0x007fc0 and mapper == 0x22: # 0x22 is usually ExLoROM
-            score += 2
-        if offset == 0x40ffc0 and mapper == 0x25: # 0x25 is usually ExHiROM
-            score += 2
-
-        # Finally, there are valid values in the Company, Region etc. fields
-        if infoblock[offset + 0x1a] == 0x33: # Company field: 0x33 indicates extended header
-            score += 2;
-        if infoblock[offset + 0x16] < 0x08: # ROM Type field
-            score += 1
-        if infoblock[offset + 0x17] < 0x10: # ROM Size field
-            score += 1
-        if infoblock[offset + 0x18] < 0x08: # SRAM Size field
-            score += 1
-        if infoblock[offset + 0x19] < 14: # Region field
-            score += 1
-
-        # Do we still have a positive score?
-        if score < 0:
-            score = 0
-
-        return score
 
     def scoreHiRom(self, data, offset=0):
         size = len(data)
