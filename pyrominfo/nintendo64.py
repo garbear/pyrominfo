@@ -8,7 +8,7 @@ class Nintendo64Parser(RomInfoParser):
     Parse a Nintendo 64 image. Valid extensions are z64 (native byte order),
     n64 (wordswapped), and v64 (byteswapped). Nintendo 64 header references and
     related source code:
-    * See rom.c of the Mupen64Plus project:
+    * rom.c of the Mupen64Plus project:
     * https://bitbucket.org/richard42/mupen64plus-core/src/4cd70c2b5d38/src/main/rom.c
     """
 
@@ -41,15 +41,31 @@ class Nintendo64Parser(RomInfoParser):
 
     def parseBuffer(self, data):
         props = {}
+
         props["title"] = self._sanitize(data[0x20 : 0x20 + 20])
-        props["code"] = self._sanitize(data[0x3c : 0x3c + 2])
+
+        # Big endian (I presume)
+        props["clock_rate"] = "%08X" % (data[0x04] << 24 | data[0x05] << 16 | data[0x06] << 8 | data[0x07])
+
+        props["version"] = "%08X" % (data[0x0c] << 24 | data[0x0d] << 16 | data[0x0e] << 8 | data[0x0f])
+
+        props["crc1"] = "%08X" % (data[0x10] << 24 | data[0x11] << 16 | data[0x12] << 8 | data[0x13])
+        props["crc2"] = "%08X" % (data[0x14] << 24 | data[0x15] << 16 | data[0x16] << 8 | data[0x17])
+
         pub = data[0x38 : 0x38 + 4].decode("ascii", "ignore")
         props["publisher"] = n64_publishers.get(pub[3], "") # Low byte of int
+        props["publisher_code"] = pub.strip()
+
+        props["code"] = self._sanitize(data[0x3c : 0x3c + 2])
+
         props["region"] = n64_regions.get(data[0x3e], "")
         if props["region"] or data[0x3e] in [0x00, 0x37]:
             props["region_code"] = "%02X" % data[0x3e]
         else:
             props["region_code"] = ""
+
+        props["image_format"] = "native" # TODO
+
         return props
 
 RomInfoParser.registerParser(Nintendo64Parser())
