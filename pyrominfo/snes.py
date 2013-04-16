@@ -72,16 +72,14 @@ class SNESParser(RomInfoParser):
             # Check for a header (512 bytes), and skip it if found
             data = romdata[512:] if self.hasSMCHeader(romdata) else romdata[:]
 
-            (hiScore, loScore, extendedFormat, headerReference) = self.findHiLoMode2(data, forceInterleavedOff)
+            (hiScore, loScore, extendedFormat, headerOffsetRef) = self.findHiLoMode2(data, forceInterleavedOff)
 
             # These two games fail to be detected (Source: Snes9x)
             if data[0x7fc0 : 0x7fc0 + 22] == b"YUYU NO QUIZ DE GO!GO!" or \
                data[0xffc0 : 0xffc0 + 21] == b"BATMAN--REVENGE JOKER":
-                mapType = "LoROM"
-                interleaved = False
-                tales = False
+                (mapType, interleaved, tales) = ("LoROM", False, False)
             else:
-                (mapType, interleaved, tales) = self.findMemoryModel(data[headerReference : ], hiScore, loScore)
+                (mapType, interleaved, tales) = self.findMemoryModel(data[headerOffsetRef : ], hiScore, loScore)
 
             if not forceInterleavedOff and interleaved:
                 mapType = self.convertInterleaved(data, extendedFormat, mapType, tales)
@@ -96,25 +94,12 @@ class SNESParser(RomInfoParser):
                     forceInterleavedOff = True
                     continue
 
-            if extendedFormat == "SMALLFIRST":
-                tales = True
-
-            if tales:
+            if tales or extendedFormat == "SMALLFIRST":
                 # Fix swapped ExHiROM
                 tmp = data[ : -0x400000]
                 tmp2 = data[-0x400000 : ]
                 data[ : 0x400000] = tmp2
                 data[0x400000 : ] = tmp
-
-            # Re-calculate the header offset (include extended header, 0x10
-            # bytes before the actual 64-byte SNES header starts)
-            # See http://romhack.wikia.com/wiki/SNES_header#Extended_header_.28bytes_.24ffb2...24ffb5.29
-            headerOffset = 0x7fb0
-            if extendedFormat == "BIGFIRST":
-                headerOffset += 0x400000
-            if mapType == "HiROM":
-                headerOffset += 0x8000
-            header = data[headerOffset : ]
 
             if data[0x7fc0 : 0x7fc0 + 21] == b"Satellaview BS-X     ":
                 bs = True
@@ -131,14 +116,23 @@ class SNESParser(RomInfoParser):
                     mapType = "LoROM" if bLo else "HiROM"
                     flashMode = (data[(0x7FC0 if bLo else 0xFFC0) + 0x18] & 0xEF) != 0x20
 
-            bsHeader = bs and not bsxItself # The BS game's SRAM was not found
+            # Re-calculate the header offset (include extended header, 0x10
+            # bytes before the actual 64-byte SNES header starts)
+            # See http://romhack.wikia.com/wiki/SNES_header#Extended_header_.28bytes_.24ffb2...24ffb5.29
+            headerOffset = 0x7fb0
+            if extendedFormat == "BIGFIRST":
+                headerOffset += 0x400000
+            if mapType == "HiROM":
+                headerOffset += 0x8000
+            header = data[headerOffset : ]
 
             # Snes9x branches on bsHeader. We simply apply the different values
             # to the ROM data and use the same code below to set props
+            bsHeader = bs and not bsxItself # The BS game's SRAM was not found
             if bsHeader:
                 # Only use the first 16 of 21 title characters
                 header[0x010 + 16, 0x010 + 21] = b"     "
-                # Rom speed uses 0x28 instead of 0x25
+                # Rom speed flag uses 0x28 (RAM size?) instead of 0x25
                 header[0x25] = header[0x28]
                 # Cartridge type is specific to Satellaview BS-X
                 header[0x26] = 0xE5
@@ -156,14 +150,78 @@ class SNESParser(RomInfoParser):
             # See http://romhack.wikia.com/wiki/SNES_header
 
             # 000-014 - Title, UPPER CASE ASCII
-            props["title"] = self._sanitize(header[0x010 : 0x010 + 21])
+            props["title"] = self._sanitize(header[0x10 : 0x10 + 21])
 
-            # 015 - ROM layout and ROM speed, a bitwise-or of these flags: LoROM, HiROM, FastROM
-            props["memory_layout"] = mapType
+            # Game code - part of the extended header
+            props["code"] = self._sanitize(header[0x02 : 0x02 + 4])
+
+            # 015 - ROM layout and ROM speed, a bitwise-or of these flags:
+            #       0x20 is always set
+            #       0x10 is set when using FastROM
+            #       0x01 is set for HiROM or cleared for LoROM
             romSpeed = header[0x25]
+            props["memory_layout"] = ("ExHiROM" if extendedFormat else "HiROM") if mapType == "HiROM" else "LoROM"
+            props["rom_speed"] = "FastROM" if (romSpeed & 0x10) else "SlowROM"
 
             # 016 - Cartridge type, values greater than 0x02 indicate special add-on hardware in the cartridge
             romType = header[0x26]
+
+            if romType == 0 and not bs:
+                kart = "ROM"
+            else:
+                identifier = ((romType & 0xff) << 8) + (romSpeed & 0xff)
+                contents = ["ROM", "ROM+RAM", "ROM+RAM+BATT"]
+                chip = ""
+
+                if bs:
+                    chip = "BS"
+                elif identifier in [0x1320, 0x1420, 0x1520, 0x1A20]:
+                    chip = "SuperFX"
+                    # Set the SRAM size
+                    if data[0x7fda] == 0x33:
+                        header[0x28] = data[0x7fbd]
+                    else:
+                        header[0x28] = 0x05 # 256 Kbit
+                    header[0x28] = 2
+                elif identifier in [0x4332, 0x4532]:
+                    chip = "SDD1"
+                elif identifier == 0x2530:
+                    chip = "OBC1"
+                elif identifier in [0x3423, 0x3523]:
+                    chip = "SA1"
+                elif identifier == 0xF93A:
+                    chip = "SPC7110+RTC"
+                elif identifier == 0xF53A:
+                    chip = "SPC7110"
+                elif identifier == 0x5535:
+                    chip = "SRTC"
+                elif identifier == 0xF320:
+                    chip = "C4"
+                elif identifier == 0xF630:
+                    chip = "ST-011" if data[0x7fd7] == 0x09 else "ST-010"
+                elif identifier == 0xF530:
+                    chip = "ST-018"
+                    # Set the SRAM  size to 32 Kbit
+                    header[0x28] = 0x02
+                elif romType == 0x03:
+                    if romSpeed == 0x30:
+                        chip = "DSP-4"
+                    else:
+                        chip = "DSP-1"
+                elif romType == 0x05:
+                    if romSpeed == 0x20:
+                        chip = "DSP-2"
+                    elif romSpeed == 0x30 and header[0x2a] == 0xb2:
+                        chip = "DSP-3"
+                    else:
+                        chip = "DSP-1"
+
+                if chip:
+                    kart = "%s+%s" % (contents[(romType & 0xf) % 3], chip)
+                else:
+                    kart = contents[(romType & 0xf) % 3]
+
+            props["cartridge_type"] = kart
 
             # 017 - ROM size, without a lookup table: 1 << (ROM_SIZE - 7) Mbits
             props["rom_size"] = "%d Mbit" % (1 << max(header[0x27] - 7, 0))
@@ -190,23 +248,21 @@ class SNESParser(RomInfoParser):
 
             # 01B - Version, typically contains 0x00. Most ROM hackers never touch this
             #       byte, so multiple versions of a ROM hack may share the same value
-            
-            
-            romType = 0xe5 if bsHeader else header[0x26]
-            if romType == 0 and not bs:
-                cartridgeType = "ROM"
-            else:
-                chip = ""
-                if romType in [0x03, 0x05]:
-                    pass
-            
-            
-            
-            
-            
-            
-            
-            
+            props["version"] = "%02X" % header[0x2b]
+
+            # 01C-01F - Checksum complement and checksum, respectively. The checksum is
+            #           the unsigned little-endian 16-bit sum of the values of the bytes
+            #           in the ROM. If the size of the ROM is not a power of 2, then some
+            #           bytes may enter the sum multiple times through mirroring. The
+            #           checksum complement is the bitwise-xor of the checksum with 0xFFFF.
+            props["checksum"] = "%04X" % (header[0x2e] + (header[0x2f] << 8))
+            props["checksum_complement"] = "%04X" % (header[0x2c] + (header[0x2d] << 8))
+
+            return props
+
+
+
+
             # First, look if the cart is HiROM or LoROM
             (mode, sram_max, headerOffset) = self.findHiLoMode(data)
             #headerOffset = self.findHiLoMode(data)
@@ -293,7 +349,7 @@ class SNESParser(RomInfoParser):
         hiScore = self.scoreHiRom(data)
         loScore = self.scoreLoRom(data)
         extendedFormat = False
-        headerReference = 0
+        headerOffsetRef = 0
 
         if len(data) > 0x400000 and \
                 data[0x7fd5] + (data[0x7fd6] << 8) not in [0x3423, 0x3523, 0x4332, 0x4532] and \
@@ -304,7 +360,7 @@ class SNESParser(RomInfoParser):
                 extendedFormat = "BIGFIRST"
                 hiScore = swappedHiRom
                 loScore = swappedLoRom
-                headerReference = 0x400000
+                headerOffsetRef = 0x400000
             else:
                 extendedFormat = "SMALLFIRST"
 
@@ -316,7 +372,7 @@ class SNESParser(RomInfoParser):
             hiScore = self.scoreHiRom(data)
             loScore = self.scoreLoRom(data)
 
-        return (hiScore, loScore, extendedFormat, headerReference,)
+        return (hiScore, loScore, extendedFormat, headerOffsetRef,)
 
     def findMemoryModel(self, data, hiScore, loScore):
         """
