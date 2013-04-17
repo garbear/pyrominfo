@@ -3,6 +3,21 @@ PyRomInfo
 
 PyRomInfo is a convenient, unified way to get data about a file originating from a read-only memory chip, often from a video game cartridge, a computer's firmware, or from an arcade game's main board.
 
+Crash Course
+------------
+
+```python
+# Import Gameboy support and parse a Gameboy ROM
+from pyrominfo import RomInfo
+from pyrominfo import gameboy
+
+props = RomInfo.parse("Zelda.gb")
+
+# Register all available ROM info parsers
+from pyrominfo import *
+props = pyrominfo.parse("Super Smash Bros.n64")
+```
+
 Useful links
 ------------
 * Enzyme: https://github.com/Diaoul/enzyme
