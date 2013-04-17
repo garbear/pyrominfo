@@ -451,7 +451,7 @@ class SNESParser(RomInfoParser):
             r = chr(header[0x01]).upper()
             l2 = ord(l) - ord('7') if l > '9' else ord(l) - ord('0')
             r2 = ord(r) - ord('7') if r > '9' else ord(r) - ord('0')
-            companyCode = l2 * 36 + r2
+            companyCode = l2 * 36 + r2 if l2 >= 0 and r2 >= 0 else -1
         return companyCode
 
 RomInfoParser.registerParser(SNESParser())
