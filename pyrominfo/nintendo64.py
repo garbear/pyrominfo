@@ -28,19 +28,24 @@ class Nintendo64Parser(RomInfoParser):
         Test for a valid N64 image by checking the first 4 bytes for the magic word.
         """
         if len(data) >= 64:
-            # Test if rom is a native .z64 image with header 0x80371240. [ABCD]
+            # Test if rom is a native (big endian) .z64 image with header 0x80371240. [ABCD]
             if [b for b in data[:4]] == [0x80, 0x37, 0x12, 0x40]:
                 return True
             # Test if rom is a byteswapped .v64 image with header 0x37804012. [BADC]
             if [b for b in data[:4]] == [0x37, 0x80, 0x40, 0x12]:
-                return False # TODO: Add byte-swapping
-            # Test if rom is a wordswapped .n64 image with header  0x40123780. [DCBA]
+                return True
+            # Test if rom is a little endian .n64 image with header 0x40123780. [DCBA]
             if [b for b in data[:4]] == [0x40, 0x12, 0x37, 0x80]:
-                return False # TODO: Add word-swapping
+                return True
+            # Test if rom is a wordswapped .n64 image with header 0x40123780. [CDAB]
+            if [b for b in data[:4]] == [0x12, 0x40, 0x80, 0x37]:
+                return True
         return False
 
     def parseBuffer(self, data):
         props = {}
+
+        self.makeNativeFormat(data)
 
         props["title"] = self._sanitize(data[0x20 : 0x20 + 20])
 
@@ -60,6 +65,17 @@ class Nintendo64Parser(RomInfoParser):
         props["region_code"] = "%02X" % data[0x3e]
 
         return props
+
+    def makeNativeFormat(self, data):
+        """
+        Correct for word- and byte-swapping.
+        """
+        if [b for b in data[:4]] == [0x37, 0x80, 0x40, 0x12]: # [BADC]
+            data[::2], data[1::2] = data[1::2], data[::2]
+        elif [b for b in data[:4]] == [0x40, 0x12, 0x37, 0x80]: # [DCBA]
+            data[::4], data[1::4], data[2::4], data[3::4] = data[3::4], data[2::4], data[1::4], data[::4]
+        elif [b for b in data[:4]] == [0x12, 0x40, 0x80, 0x37]: # [CDAB]
+            data[::4], data[1::4], data[2::4], data[3::4] = data[2::4], data[3::4], data[::4], data[1::4]
 
 RomInfoParser.registerParser(Nintendo64Parser())
 
