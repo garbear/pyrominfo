@@ -127,12 +127,12 @@ class SNESParser(RomInfoParser):
                 header[0x25] = header[0x28]
                 # Cartridge type is specific to Satellaview BS-X
                 header[0x26] = 0xE5
-                # Is this correct?
+                # Rom size (Is this correct?)
                 p = 0
                 while (1 << p) < len(data):
                     p += 1
-                header[0x27] = p - 10
-                # Ram speed is 256Kbit (standard for most copiers according to Snesrom.txt)
+                header[0x27] = max(p - 10, 8) # 0x08 is the min according to romhack.wikia.com
+                # Ram size is 256 Kbit (standard for most copiers according to Snesrom.txt)
                 header[0x28] = 0x05
                 # Region is hard-coded to Japan apparently
                 header[0x29] = 0
@@ -157,11 +157,12 @@ class SNESParser(RomInfoParser):
             # 016 - Cartridge type, values greater than 0x02 indicate special add-on hardware in the cartridge
             props["cartridge_type"] = self.getCartridgeType(header, bs)
 
-            # 017 - ROM size, without a lookup table: 1 << (ROM_SIZE - 7) Mbits
-            props["rom_size"] = "%d Mbit" % (1 << max(header[0x27] - 7, 0))
+            # 017 - ROM size: 1 << (ROM_SIZE - 7) Mbits, range is 8..12 (256KB..4MB, 2Mb..32Mb)
+            b = header[0x27]
+            props["rom_size"] = "%d Mbit" % (1 << (b - 7)) if (8 <= b and b <= 12) else ""
 
-            # 018 - RAM size: 1 << (3 + SRAM_BYTE) Kbits
-            props["ram_size"] = "%d Kbit" % (1 << (3 + header[0x28]))
+            # 018 - RAM size: 1 << (3 + SRAM_BYTE) Kbits, range is 0..5 (0..32 kilobytes, 0..256 kbit)
+            props["ram_size"] = "%d Kbit" % (1 << (3 + header[0x28])) if header[0x28] <= 5 else ""
 
             # 019 - Country code, video region
             props["region"] = snes_regions.get(header[0x29], "")
@@ -317,7 +318,7 @@ class SNESParser(RomInfoParser):
             score -= 2
         if data[0xd5] & 0xf < 4:
             score += 2
-        if 1 << (data[0xd7] - 7) > 48:
+        if 1 << max(data[0xd7] - 7, 0) > 48:
             score -= 1
         if data[0xda] == 0x33:
             score += 2
@@ -349,7 +350,7 @@ class SNESParser(RomInfoParser):
             score += 2
         if data[0xd5] & 0xf < 4:
             score += 2
-        if 1 << (data[0xd7] - 7) > 48:
+        if 1 << max(data[0xd7] - 7, 0) > 48:
             score -= 1
         if data[0xda] == 0x33:
             score += 2
