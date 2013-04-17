@@ -44,27 +44,20 @@ class Nintendo64Parser(RomInfoParser):
 
         props["title"] = self._sanitize(data[0x20 : 0x20 + 20])
 
-        # Big endian (I presume)
-        props["clock_rate"] = "%08X" % (data[0x04] << 24 | data[0x05] << 16 | data[0x06] << 8 | data[0x07])
-
+        # Big endian
         props["version"] = "%08X" % (data[0x0c] << 24 | data[0x0d] << 16 | data[0x0e] << 8 | data[0x0f])
 
         props["crc1"] = "%08X" % (data[0x10] << 24 | data[0x11] << 16 | data[0x12] << 8 | data[0x13])
         props["crc2"] = "%08X" % (data[0x14] << 24 | data[0x15] << 16 | data[0x16] << 8 | data[0x17])
 
-        pub = data[0x38 : 0x38 + 4].decode("ascii", "ignore")
-        props["publisher"] = n64_publishers.get(pub[3], "") # Low byte of int
+        pub = self._sanitize(data[0x38 : 0x38 + 4])
+        props["publisher"] = n64_publishers.get(pub, "")
         props["publisher_code"] = pub.strip()
 
         props["code"] = self._sanitize(data[0x3c : 0x3c + 2])
 
         props["region"] = n64_regions.get(data[0x3e], "")
-        if props["region"] or data[0x3e] in [0x00, 0x37]:
-            props["region_code"] = "%02X" % data[0x3e]
-        else:
-            props["region_code"] = ""
-
-        props["image_format"] = "native" # TODO
+        props["region_code"] = "%02X" % data[0x3e]
 
         return props
 
@@ -72,8 +65,8 @@ RomInfoParser.registerParser(Nintendo64Parser())
 
 
 n64_regions = {
-    0x00: None, # Demo games
-    0x37: None, # Beta games
+    0x00: "", # Demo games
+    0x37: "", # Beta games
     0x41: "Japan/USA",
     0x44: "Germany",
     0x45: "USA",
