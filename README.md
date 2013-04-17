@@ -10,12 +10,12 @@ Crash Course
 # Import Gameboy support and parse a Gameboy ROM
 from pyrominfo import RomInfo
 from pyrominfo import gameboy
-
 props = RomInfo.parse("Zelda.gb")
 
 # Register all available ROM info parsers
 from pyrominfo import *
-props = pyrominfo.parse("Super Smash Bros.n64")
+props = RomInfo.parse("Super Smash Bros.n64")
+props = RomInfo.parse("Super Mario Kart.smc")
 ```
 
 Useful links
