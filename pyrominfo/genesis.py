@@ -42,10 +42,14 @@ class GensisParser(RomInfoParser):
 
             # TODO: assume/detect interleaved Genesis ROM format (.smd) and de-interleave
 
-        # Sniff out Master System ROM header
+        # Sniff out Master System ROM header.
+        # Gensis Plus GX looks at addresses 0x1FF0, 0x3FF0, 0x7FF0.
+        # Quite a few ROMs, including "Strider (UE) [!].sms", use address 0x81F0.
+        # X-MAME 0.106 has code to check this address, but the code is commented out...
+        # https://code.oregonstate.edu/svn/dsp_bd/uclinux-dist/trunk/user/games/xmame/xmame-0.106/mess/machine/sms.c
         offset = 0
         if len(data) > 0x8000:
-            for off in [0x1ff0, 0x3ff0, 0x7ff0]:
+            for off in [0x1ff0, 0x3ff0, 0x7ff0, 0x81f0]:
                 if data[off : off + 8] == b"TMR SEGA":
                     offset = off
                     break
