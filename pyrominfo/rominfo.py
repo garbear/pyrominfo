@@ -65,9 +65,11 @@ class RomInfoParser(object):
 
     def _sanitize(self, title):
         """
-        Turn all non-ASCII characters into spaces, and then return a stripped string.
+        Turn all non-ASCII characters into spaces (tab, CR and LF line breaks
+        are OK), and then return a stripped string.
         """
-        return ''.join(chr(b) if 0x20 <= b and b <= 0x7E else ' ' for b in title).strip()
+        return ''.join(chr(b) if b in [ord('\t'), ord('\n'), ord('\r')] or \
+                       0x20 <= b and b <= 0x7E else ' ' for b in title).strip()
 
     def _allASCII(self, data):
         return all(0x20 <= b and b <= 0x7E for b in data)
