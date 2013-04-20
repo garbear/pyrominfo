@@ -21,7 +21,7 @@ class GameboyParser(RomInfoParser):
         with open(filename, "rb") as f:
             data = bytearray(f.read(0x150))
             if self.isValidData(data):
-                props = self.parseBuffer(data) 
+                props = self.parseBuffer(data)
         return props
 
     def isValidData(self, data):
