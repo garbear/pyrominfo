@@ -36,7 +36,7 @@ class MasterSystemParser(RomInfoParser):
         homebrew software. This tag is used as a fallback test if TMR SEGA isn't
         found.
         """
-        if any(data[offset : offset + 8] == b"TMR SEGA" for offset in 0x1ff0, 0x3ff0, 0x7ff0, 0x81f0):
+        if any(data[offset : offset + 8] == b"TMR SEGA" for offset in [0x1ff0, 0x3ff0, 0x7ff0, 0x81f0]):
             return True
         if data[0x7fe0 : 0x7fe0 + 4] == b"SDSC":
             return True
