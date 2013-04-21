@@ -30,9 +30,6 @@ class SNESParser(RomInfoParser):
     * http://mamedev.org/source/src/mess/machine/snescart.c.html
     """
 
-    # Max rom size is 0x800000 + 0x200 (8mb + 512b SMC header) according to Snes9x
-    MAX_ROM_SIZE = 0x800000 + 0x200
-
     # Enum values
     FORMAT_LoROM = 0
     FORMAT_HiROM = 1
@@ -47,12 +44,12 @@ class SNESParser(RomInfoParser):
         props = {}
         with open(filename, "rb") as f:
             data = bytearray(f.read())
-            if 0 < len(data) and len(data) <= SNESParser.MAX_ROM_SIZE:
+            if len(data):
                 props = self.parseBuffer(data)
         return props
 
     def isValidData(self, data):
-        if 0 < len(data) and len(data) <= SNESParser.MAX_ROM_SIZE:
+        if len(data):
             if self.hasSMCHeader(data):
                 return True
             # TODO: Need more conclusive tests
