@@ -38,7 +38,7 @@ class GensisParser(RomInfoParser):
         if data[0x100 : 0x100 + 15] == b"SEGA MEGA DRIVE" or \
            data[0x100 : 0x100 + 12] == b"SEGA GENESIS":
             return True
-        if self.hasSMDHeader(data) or self.isInterleavedSMD(data):
+        if self.hasSMDHeader(data) or self.isInterleaved(data):
             return True
         return False
 
@@ -48,12 +48,12 @@ class GensisParser(RomInfoParser):
         # TODO: If extension is .mdx, decode image
         #data = [b ^ 0x40 for b in data[4 : -1]] # len(data) decreases by 5
 
-        # Auto-detect 512 byte SMD header
+        # Auto-detect SMD/MD interleaving
         if self.hasSMDHeader(data):
             data = data[0x200 : ]
             self.deinterleaveSMD(data)
-        elif self.isInterleavedSMD(data):
-            self.deinterleaveSMD(data)
+        elif self.isInterleaved(data):
+            self.deinterleaveMD(data)
 
         # 0100-010f - Console name, can be "SEGA MEGA DRIVE" or "SEGA GENESIS"
         #             depending on the console's country of origin.
@@ -137,13 +137,24 @@ class GensisParser(RomInfoParser):
             return True
 
         # Finally, directly analyze the payload
-        return self.isInterleavedSMD(data[0x200 : ])
+        return self.isInterleaved(data[0x200 : ])
 
-    def isInterleavedSMD(self, data):
+    def deinterleaveMD(self, data):
         """
-        Test for interleaved SMD data. Tests are from md_slot.c of the MAME
-        project. The data parameter assumes that SMD header has been stripped
-        before being passed as an argument.
+        Multi Game Doctor file-format (.MD) is an interleaved, non-headered format.
+        The interleaving it uses is equal to the SMD, but without the division in
+        blocks. (Even bytes at the beginning of file, odd bytes at the end. Source
+        correction: Genesis_ROM_Format.txt erroneously says "Even at the end, odd
+        at the beginning.")
+        """
+        mid = len(data) >> 1
+        data[::2], data[1::2] = data[mid : ], data[ : mid]
+
+    def isInterleaved(self, data):
+        """
+        Test for interleaved (SMD or MD) data. Tests are from md_slot.c of the
+        # MAME project. The data parameter assumes that SMD header has been
+        # stripped before being passed as an argument.
         """
         # Gens checks data[0x80 : 0x81] == b"EA" (odd bytes) for evidence of
         # interlacing. I think MAME also checks data[0x2080 : 0x2081] == b"SG"
@@ -155,8 +166,15 @@ class GensisParser(RomInfoParser):
         if data[0x80 : 0x81] == b"SG" and data[0x2080 : 0x2081] == b" E":
             return True
 
+        # For MD interleaving, instead of looking for odd bytes, just look for
+        # more even bytes. We need two tests here for different console names.
+        if data[0x80 : 0x80 + 4] in [b"EAMG", b"EAGN"]:
+            return True
+
         # Test for edge cases. Tests are from md_slot.c of the MAME project.
         # Per their comments, code is taken directly from GoodGEN by Cowering.
+        # Tests are for SMD interleaving which uses 16K blocks, so cases with
+        # addresses < 0x2000 (8K) should also be valid tests for MD interleaving.
         edge_cases = [
             (0x00f0, "OL R-AEAL"),        # Jap Baseball 94
             (0x00f3, "optrEtranet"),      # Devilish Mahjong Tower
@@ -172,17 +190,6 @@ class GensisParser(RomInfoParser):
         ]
 
         return any(data[case[0] : case[0] + len(case[1])] == case[1] for case in edge_cases)
-
-    def deinterleaveMD(self, data):
-        """
-        Multi Game Doctor file-format (.MD) is an interleaved, non-headered format.
-        The interleaving it uses is equal to the SMD, but without the division in
-        blocks! (Even bytes at the beginning of file, odd bytes at the end. Source
-        correction: Genesis_ROM_Format.txt erroneously says "Even at the end, odd
-        at the beginning.")
-        """
-        mid = len(data) >> 1
-        data[::2], data[1::2] = data[mid : ], data[ : mid]
 
     def getPublisher(self, copyright_str):
         """
