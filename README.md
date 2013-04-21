@@ -25,3 +25,4 @@ Useful links
 * Heimdall: https://github.com/topfs2/heimdall
 * PyMediaInfo: https://github.com/paltman/pymediainfo
 * Mutagen: https://code.google.com/p/mutagen
+* Hachoir parser framework: https://pypi.python.org/pypi/hachoir-parser
