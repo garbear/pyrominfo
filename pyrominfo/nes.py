@@ -10,8 +10,8 @@ class NESParser(RomInfoParser):
     * http://nesdev.com/neshdr20.txt
     * http://wiki.nesdev.com/w/index.php/INES
     * http://codef00.com/unif_cur.txt
-    * nes.c of the MAME project:
-    * http://mamedev.org/source/src/mess/machine/nes.c.html
+    * nes_slot.c of the MAME project:
+    * http://git.redump.net/mame/tree/src/mess/machine/nes_slot.c
     """
 
     def getValidExtensions(self):

@@ -26,8 +26,8 @@ class SNESParser(RomInfoParser):
     * http://zsnes.cvs.sourceforge.net/viewvc/zsnes/zsnes/src/initc.c?view=markup
     * memmap.cpp of the Snes9x project:
     * https://github.com/snes9xgit/snes9x/blob/master/memmap.cpp
-    * snescart.c of the MAME project:
-    * http://mamedev.org/source/src/mess/machine/snescart.c.html
+    * sns_slot.c of the MAME project:
+    * http://git.redump.net/mame/tree/src/mess/machine/sns_slot.c
     """
 
     # Enum values
