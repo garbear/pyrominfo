@@ -11,6 +11,9 @@ Crash Course
 from pyrominfo import RomInfo
 from pyrominfo import gameboy
 props = RomInfo.parse("Zelda.gb")
+if props:
+    print "Title: %s" % props["title"]
+    print "Publisher: %s" % props["publisher"]
 
 # Register all available ROM info parsers
 from pyrominfo import *
