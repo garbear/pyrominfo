@@ -36,6 +36,7 @@ class RomInfoParser(object):
 
     @staticmethod
     def registerParser(romInfoParser):
+        assert issubclass(romInfoParser.__class__, RomInfoParser)
         RomInfoParser.__parsers.append(romInfoParser)
 
     @staticmethod

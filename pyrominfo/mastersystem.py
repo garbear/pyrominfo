@@ -73,9 +73,10 @@ class MasterSystemParser(RomInfoParser):
         # Also include checksum in ASCII. Some programmers, like Yuji Naka, use the
         # reserved space and checksum as a signature (NAKA), so in this case KA is
         # more convenient than 0x4B41. According to www.smspower.org, these signatures
-        # only seem to feature A-Z, 0-9 and /.
+        # only feature A-Z, 0-9 and /.
         word = self._sanitize(header[0x0a : 0x0a + 2])
-        props["checksum_ascii"] = [c for c in word if 'A' <= c and c <= 'Z' or '0' <= c and c <= '9' or c == '/']
+        props["checksum_ascii"] = "".join(c for c in word if 'A' <= c and c <= 'Z' or \
+                                                             '0' <= c and c <= '9' or c == '/')
 
         # 7FFC-7FFE.8 - Product code. The first 2 bytes are a Binary Coded Decimal
         #               representation of the last four digits of the product code.

@@ -6,8 +6,8 @@ from rominfo import RomInfoParser
 class Nintendo64Parser(RomInfoParser):
     """
     Parse a Nintendo 64 image. Valid extensions are z64 (native byte order),
-    n64 (wordswapped), and v64 (byteswapped). Nintendo 64 header references and
-    related source code:
+    n64 (wordswapped), and v64 (byteswapped).
+    Nintendo 64 header references and related source code:
     * rom.c of the Mupen64Plus project:
     * https://bitbucket.org/richard42/mupen64plus-core/src/4cd70c2b5d38/src/main/rom.c
     """
