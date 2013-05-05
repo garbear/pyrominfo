@@ -15,18 +15,18 @@ class TestGBAParser(unittest.TestCase):
 
     def test_gba(self):
         empty = self.gbaParser.parse("data/empty")
-        self.assertEquals(len(empty), 0)
+        self.assertEqual(len(empty), 0)
 
         props = self.gbaParser.parse("data/Golden Sun - The Lost Age.gba")
-        self.assertEquals(len(props), 8)
-        self.assertEquals(props["title"], "GOLDEN_SUN_B")
-        self.assertEquals(props["code"], "AGFE")
-        self.assertEquals(props["publisher"], "Nintendo")
-        self.assertEquals(props["publisher_code"], "01")
-        self.assertEquals(props["unit_code"], "00")
-        self.assertEquals(props["version"], "00")
-        self.assertEquals(props["header_checksum"], "2E")
-        self.assertEquals(props["platform"], "Game Boy Advance")
+        self.assertEqual(len(props), 8)
+        self.assertEqual(props["title"], "GOLDEN_SUN_B")
+        self.assertEqual(props["code"], "AGFE")
+        self.assertEqual(props["publisher"], "Nintendo")
+        self.assertEqual(props["publisher_code"], "01")
+        self.assertEqual(props["unit_code"], "00")
+        self.assertEqual(props["version"], "00")
+        self.assertEqual(props["header_checksum"], "2E")
+        self.assertEqual(props["platform"], "Game Boy Advance")
 
 if __name__ == '__main__':
     unittest.main()
