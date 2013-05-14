@@ -6,7 +6,12 @@ from rominfo import RomInfoParser
 __all__ = [
     "RomInfo",
     "gameboy",
+    "gba",
+    "genesis",
+    "mastersystem",
+    "nes",
     "nintendo64",
+    "snes",
 ]
 
 class RomInfo(object):
