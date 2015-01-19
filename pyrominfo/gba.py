@@ -13,7 +13,7 @@ class GBAParser(RomInfoParser):
     * http://z9.invisionfree.com/Golden_Sun_Hacking/index.php?showtopic=241
     * http://members.iinet.net.au/~freeaxs/gbacomp (Nintendo Logo data)
     * RomInfo.cpp of the VBA-M project:
-    * http://vbam.svn.sourceforge.net/viewvc/vbam/trunk/src/win32/RomInfo.cpp?view=markup
+    * http://sourceforge.net/p/vbam/code/HEAD/tree/trunk/src/win32/RomInfo.cpp
     """
 
     def getValidExtensions(self):
