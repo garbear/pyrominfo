@@ -10,7 +10,7 @@ class GameboyParser(RomInfoParser):
     * http://gbdev.gg8.se/wiki/articles/The_Cartridge_Header
     * http://gameboy.mongenel.com/dmg/asmmemmap.html
     * RomInfo.cpp of the VBA-M project:
-    * http://vbam.svn.sourceforge.net/viewvc/vbam/trunk/src/win32/RomInfo.cpp?view=markup
+    * http://sourceforge.net/p/vbam/code/HEAD/tree/trunk/src/win32/RomInfo.cpp
     """
 
     def getValidExtensions(self):
