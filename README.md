@@ -29,3 +29,4 @@ Useful links
 * PyMediaInfo: https://github.com/paltman/pymediainfo
 * Mutagen: https://code.google.com/p/mutagen
 * Hachoir parser framework: https://pypi.python.org/pypi/hachoir-parser
+* PS ISO Tool: https://github.com/CaptainCPS/PS_ISO_Tool/
