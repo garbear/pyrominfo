@@ -4,6 +4,8 @@
 import os
 import csv
 import struct
+import time
+import datetime
 from rominfo import RomInfoParser
 
 
@@ -171,16 +173,38 @@ class DreamcastParser(RomInfoParser):
                     return f.read(256)
 
     def parseBuffer(self, data):
+        # See SEGA's GD-ROM Format Basic Specifications Ver. 2.13, p. 13 for
+        # details.
+        fmt = "<16s16s5s11s8s8s10s6s8s8x12s4x16s96s32x"
         try:
             ip_info = (s.decode('ascii').strip() for s in
-                       struct.unpack("<16s16s16s8s8s10s6s16s16s16s128s", data))
+                       struct.unpack(fmt, data))
         except (struct.error, UnicodeDecodeError):
             return {}
-        keys = ('hardware_id', 'maker_id', 'disc_id', 'areas', 'peripherals',
-                'product_id', 'product_version', 'release_date', 'bootfile',
-                'publisher', 'product_name')
+        keys = ('hardware_id',
+                'hardware_vendor_id',
+                'media_id',
+                'media_info_code',
+                'region_code',
+                'compatible_peripherals',
+                'product_id',
+                'product_version',
+                'release_date_code',
+                'bootfile',
+                'publisher',
+                'game_title')
 
-        return dict(zip(keys, ip_info))
+        props = dict(zip(keys, ip_info))
+        try:
+            props['media_info'] = tuple(
+                int(x) for x in props['media_info_code'][6:].split('/'))
+            props['release_date'] = datetime.date(
+                *time.strptime(props['release_date_code'], "%Y%m%d")[:3])
+            props['regions'] = tuple(
+                dc_regions.get(r) for r in props['region_code'])
+        except (KeyError, IndexError, ValueError):
+            return {}
+        return props
 
 
 RomInfoParser.registerParser(DreamcastParser())
@@ -199,4 +223,10 @@ cdi_track_modes = {
     0: 'audio',
     1: 'mode1',
     2: 'mode2'
+}
+
+dc_regions = {
+    'J': 'Asia',     # Japan, Korea, Asian NTSC
+    'U': 'America',  # North American NTSC, Brazilian PAL-M, Argentine PAL-N
+    'E': 'Europe'    # European PAL
 }
