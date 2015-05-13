@@ -19,6 +19,8 @@ class DreamcastParser(RomInfoParser):
     * http://thekickback.com/dreamcast/GD-ROM%20Format%20Basic%20Specifications%20v2.14.pdf
     * Image reader code of the reicast-emulator project:
     * https://github.com/reicast/reicast-emulator/tree/master/core/imgread
+    * IP0000.BIN documentation:
+    * https://www.dropbox.com/s/ithnw69wy3ciuzn/IP0000.BIN.txt
     """
 
     def getValidExtensions(self):
@@ -186,7 +188,7 @@ class DreamcastParser(RomInfoParser):
                 'media_id',
                 'media_info_code',
                 'region_code',
-                'compatible_peripherals',
+                'compatible_peripherals_code',
                 'product_id',
                 'product_version',
                 'release_date_code',
@@ -196,6 +198,12 @@ class DreamcastParser(RomInfoParser):
 
         props = dict(zip(keys, ip_info))
         try:
+            peripherals_code = int(props['compatible_peripherals_code'], 16)
+            peripherals = []
+            for p_code, p_desc in dc_peripherals.items():
+                if peripherals_code & p_code == p_code:
+                    peripherals.append(p_desc)
+            props['compatible_peripherals'] = tuple(peripherals)
             props['media_info'] = tuple(
                 int(x) for x in props['media_info_code'][6:].split('/'))
             props['release_date'] = datetime.date(
@@ -229,4 +237,32 @@ dc_regions = {
     'J': 'Asia',     # Japan, Korea, Asian NTSC
     'U': 'America',  # North American NTSC, Brazilian PAL-M, Argentine PAL-N
     'E': 'Europe'    # European PAL
+}
+
+dc_peripherals = {
+    0b0000000000000000000000000001: 'Uses Windows CE',
+    0b0000000000000000000000010000: 'VGA box support',
+    # Expansion units
+    0b0000000000000000000100000000: 'Other expansions',
+    0b0000000000000000001000000000: 'Puru Puru pack',
+    0b0000000000000000010000000000: 'Mike device',
+    0b0000000000000000100000000000: 'Memory card',
+    # Required peripherals
+    0b0000000000000001000000000000: 'Start/A/B/Directions',
+    0b0000000000000010000000000000: 'C button',
+    0b0000000000000100000000000000: 'D button',
+    0b0000000000001000000000000000: 'X button',
+    0b0000000000010000000000000000: 'Y button',
+    0b0000000000100000000000000000: 'Z button',
+    0b0000000001000000000000000000: 'Expanded direction buttons',
+    0b0000000010000000000000000000: 'Analog R trigger',
+    0b0000000100000000000000000000: 'Analog L trigger',
+    0b0000001000000000000000000000: 'Analog horizontal controller',
+    0b0000010000000000000000000000: 'Analog vertical controller',
+    0b0000100000000000000000000000: 'Expanded analog horizontal',
+    0b0001000000000000000000000000: 'Expanded analog vertical',
+    # Optional peripherals
+    0b0010000000000000000000000000: 'Gun',
+    0b0100000000000000000000000000: 'Keyboard',
+    0b1000000000000000000000000000: 'Mouse'
 }
