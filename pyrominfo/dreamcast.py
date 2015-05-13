@@ -2,6 +2,7 @@
 # See Copyright Notice in rominfo.py
 
 import os
+import csv
 import struct
 from rominfo import RomInfoParser
 
@@ -20,15 +21,29 @@ class DreamcastParser(RomInfoParser):
 
     def getValidExtensions(self):
         # TODO: Improve cdi support
-        # TODO: Add gdi support
-        return ["cdi"]
+        # TODO: Add chd support
+        return ["cdi", "gdi"]
 
     def parse(self, filename):
-        props = {}
+        ext = os.path.splitext(filename)[1].lower()
+        data = None
+        if ext == '.cdi':
+            data = self._parse_cdi(filename)
+        elif ext == '.gdi':
+            data = self._parse_gdi(filename)
+        else:
+            print("Unknown image format")
+
+        if data is None:
+            return {}
+        else:
+            return self.parseBuffer(data)
+
+    def _parse_cdi(self, filename):
         file_size = os.path.getsize(filename)
         if file_size < 8:
             print("Image size too short")
-            return props
+            return None
 
         with open(filename, mode="rb") as f:
             f.seek(file_size-8)
@@ -37,11 +52,11 @@ class DreamcastParser(RomInfoParser):
 
             if image_header_offset == 0:
                 print("Bad image format")
-                return props
+                return None
 
             if image_version not in (CDI_V2, CDI_V3, CDI_V35):
                 print("Unsupported CDI version!")
-                return props
+                return None
 
             f.seek(image_header_offset)
             num_sessions = struct.unpack("<H", f.read(2))[0]
@@ -60,12 +75,12 @@ class DreamcastParser(RomInfoParser):
                     current_start_mark = struct.unpack("<10B", f.read(10))
                     if current_start_mark != cdi_track_start_mark:
                         print("Unsupported format: Missing track start mark")
-                        return props
+                        return None
 
                     current_start_mark = struct.unpack("<10B", f.read(10))
                     if current_start_mark != cdi_track_start_mark:
                         print("Unsupported format: Missing track start mark")
-                        return props
+                        return None
 
                     f.seek(4, 1)
                     filename_length = struct.unpack("<B", f.read(1))[0]
@@ -129,8 +144,31 @@ class DreamcastParser(RomInfoParser):
             f.seek(ip_bin_position)
             data = f.read(256)
 
-            props = self.parseBuffer(data)
-            return props
+            return data
+
+    def _parse_gdi(self, filename):
+        with open(filename, mode="r") as f:
+            num_tracks = int(f.readline().strip())
+            if num_tracks < 3:
+                print("GDI images should have at least 3 tracks!")
+            gdi_reader = csv.reader(f, delimiter=' ', quotechar='"')
+            for row in gdi_reader:
+                track_index = int(row[0])
+                track_ctrl = int(row[2])
+                track_mode = 0 if track_ctrl == 0 else 1
+                track_filename = os.path.abspath(os.path.join(
+                    os.path.dirname(filename), row[4]))
+                if track_index == 3:
+                    break
+        if track_index == 3:
+            if track_mode == 0:
+                print("Track 3 should be a data track, but it isn't!")
+            else:
+                # Extract IP.BIN data
+                with open(track_filename, mode="rb") as f:
+                    ip_bin_position = 0x10
+                    f.seek(ip_bin_position)
+                    return f.read(256)
 
     def parseBuffer(self, data):
         try:
